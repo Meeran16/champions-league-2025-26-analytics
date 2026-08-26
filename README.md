@@ -12,14 +12,15 @@ Python · SQL · SQLite · Pandas · Matplotlib · Jupyter
 
 ## Project Overview
 
-This project analyzes the **2025/26 UEFA Champions League** using two complementary match datasets:
+This project analyzes the **2025/26 UEFA Champions League** using complementary match datasets and a reproducible player-leaderboard layer:
 
 - a complete competition-results source containing **189 matches** across the league phase and knockout stages;
-- a richer match-statistics source containing **144 league-phase matches** with possession, shots, saves, venue and referee information.
+- a richer match-statistics source containing **144 league-phase matches** with possession, shots, saves, venue and referee information;
+- local player-statistic snapshots derived from published UEFA leaderboards and a StatBunker goalkeeper clean-sheet table.
 
-The project focuses on a practical analytics workflow: source inspection, data cleaning, cross-source validation, relational modelling, SQL analysis and Python visualization.
+The project focuses on a practical analytics workflow: source inspection, data cleaning, cross-source validation, relational modelling, SQL analysis, Python visualization and explainable position-specific player scoring.
 
-The two source scopes are deliberately kept separate. Detailed possession and shooting analysis is performed only for the league phase because the richer dataset does not contain the knockout rounds.
+The source scopes are deliberately kept separate. Detailed possession and shooting analysis is performed only for the league phase because the richer match dataset does not contain the knockout rounds. The player layer is also explicitly bounded: it is a **Leaderboard Performance Index (LPI)** built from published leaderboard candidates, not a full event-data model of every player action.
 
 ---
 
@@ -36,6 +37,7 @@ The project is designed to answer questions such as:
 - Which teams scored and conceded the most across the complete competition?
 - How did match characteristics change across tournament stages?
 - How should extra-time and penalty-shootout matches be represented correctly in an analytical database?
+- Which published statistical leaders score most strongly within a transparent, position-specific player index?
 
 ---
 
@@ -45,10 +47,12 @@ The project is designed to answer questions such as:
 |---|---:|---|
 | OpenFootball Champions League 2025/26 | 189 matches | dates, stages, teams, scores, half-time scores, extra time, penalties |
 | Champions League Matches 2025–2026 dataset | 144 league-phase matches | venue, referee, possession, shots, shots on target, saves |
+| UEFA Champions League 2025/26 published player leaderboards | selected top-six player leaderboards | goals, assists, attempts on target, tackles, balls recovered, saves |
+| StatBunker goalkeeper snapshot | goalkeeper clean-sheet table | clean sheets, appearances, clean-sheet percentage |
 
-Source pages are documented in [`data/raw/README.md`](data/raw/README.md).
+Match-source details are documented in [`data/raw/README.md`](data/raw/README.md). Player-source details and reproducibility notes are documented in [`data/raw/player_sources.md`](data/raw/player_sources.md).
 
-Raw source files are intentionally excluded from Git tracking. The repository stores the processing logic and analysis rather than redistributing the original datasets.
+The original match datasets are intentionally excluded from Git tracking. The repository stores the processing logic, generated analysis outputs and the small player-source snapshots required to reproduce the LPI.
 
 ---
 
@@ -79,6 +83,22 @@ Complete results source                 Detailed league-phase source
                     Findings + figures
 ```
 
+The player layer is intentionally independent of live web access:
+
+```text
+UEFA leaderboard snapshot      StatBunker goalkeeper snapshot
+            │                              │
+            └──────────────┬───────────────┘
+                           ▼
+                  Position-specific LPI
+                           ▼
+                  Player ranking tables
+                           ▼
+                Markdown report + charts
+                           ▼
+                     SQLite tables
+```
+
 ---
 
 ## Data Quality and Cleaning
@@ -88,19 +108,20 @@ Several realistic cleaning problems are handled explicitly:
 - The detailed source contains **151 raw rows**, including **7 empty separator rows**; the pipeline retains the **144 actual matches**.
 - Possession values such as `63%` are converted to numeric percentages.
 - Shooting values such as `3 of 10` are split into shots on target and total shots.
-- The two sources use different club-name conventions, so a canonical team mapping is maintained in [`src/team_mapping.py`](src/team_mapping.py).
+- The two match sources use different club-name conventions, so a canonical team mapping is maintained in [`src/team_mapping.py`](src/team_mapping.py).
 - All **144 detailed matches** are joined one-to-one to the full competition source using date, home team and away team.
-- All 144 linked scores are validated across both sources.
+- All 144 linked scores are validated across both match sources.
 - Possession totals are 100% for 132 matches and 101% for 12 matches because of source rounding.
 - Extra time and penalty shootouts are modelled separately. The final, for example, is represented as a **1–1 match after extra time** with a separate **4–3 penalty shootout**, rather than being treated as a normal 4–3 match.
+- Player ranking calculations use committed source snapshots rather than runtime scraping, so the analysis remains deterministic even when third-party sites block or time out.
 
-A detailed field-level description is available in [`docs/data_dictionary.md`](docs/data_dictionary.md).
+A detailed match field-level description is available in [`docs/data_dictionary.md`](docs/data_dictionary.md).
 
 ---
 
 ## Database Design
 
-The SQLite database uses three core tables:
+The SQLite database starts with three core match tables:
 
 ```text
 teams
@@ -131,7 +152,7 @@ league_phase_stats
   shooting / save percentages
 ```
 
-This separates full-season result data from the statistics that are only available for the league phase.
+The player upgrade adds generated player-analysis tables to the same local database. This keeps full-season results, league-phase match statistics and the bounded player-ranking layer logically separate.
 
 ---
 
@@ -147,6 +168,8 @@ Files:
 - [`sql/03_team_performance.sql`](sql/03_team_performance.sql) — league table and full-competition team performance
 - [`sql/04_home_away_analysis.sql`](sql/04_home_away_analysis.sql) — home/away performance
 - [`sql/05_advanced_analysis.sql`](sql/05_advanced_analysis.sql) — rolling form and attacking-efficiency analysis
+- [`sql/06_player_performance.sql`](sql/06_player_performance.sql) — player-performance exploration
+- [`sql/07_position_rankings.sql`](sql/07_position_rankings.sql) — position-specific ranking queries
 
 ---
 
@@ -177,31 +200,47 @@ Additional generated findings are stored in [`reports/analysis_summary.md`](repo
 
 ## Player Performance Analysis
 
-The project also includes a position-specific player-ranking layer for the 2025/26 Champions League.
+The repository includes a reproducible **Leaderboard Performance Index (LPI)** for four broad position groups:
 
-Player statistics are collected from FBref's non-qualifying-round competition tables and transformed into comparable per-90 and percentage metrics. Players are grouped by their primary position and filtered by minimum playing time before scoring.
+- Forward
+- Midfielder
+- Defender
+- Goalkeeper
 
-The analytical model ranks:
+The LPI is an explainable portfolio metric, **not an official UEFA player ranking**. It intentionally uses only statistics that can be preserved locally and traced back to published source tables.
 
-- Top 5 forwards
-- Top 5 midfielders
-- Top 5 defenders
-- Top 5 goalkeepers
+For outfield players, published leaderboard rank is converted into a transparent point signal and then combined with position-specific weights:
 
-Each position uses different metrics and weights rather than applying one generic score to every player. The resulting `performance_score` is a within-position analytical score from 0–100, not an official UEFA award.
+| Position | Signals used |
+|---|---|
+| Forward | goals, attempts on target, assists |
+| Midfielder | tackles, balls recovered, assists, attempts on target |
+| Defender | balls recovered, tackles, assists |
+| Goalkeeper | UEFA saves leaderboard plus StatBunker clean-sheet count/rate |
+
+A player who is absent from a published top-six leaderboard receives zero **leaderboard points** for that category. This does not imply that the player's actual statistic was zero. For that reason, the LPI is explicitly described as a ranking of published leaderboard candidates rather than a complete all-player performance model.
+
+The implementation uses **zero network requests at runtime**. Source snapshots are versioned in the repository, the ranking calculations are deterministic, and the resulting methodology can be reproduced during an interview or code review without depending on third-party website availability.
 
 Detailed methodology: [`docs/player_ranking_methodology.md`](docs/player_ranking_methodology.md)
 
 Generated report: [`reports/player_rankings.md`](reports/player_rankings.md)
 
-Run the full player upgrade after the base pipeline:
+Generated charts:
+
+- [`reports/figures/top5_forwards.png`](reports/figures/top5_forwards.png)
+- [`reports/figures/top5_midfielders.png`](reports/figures/top5_midfielders.png)
+- [`reports/figures/top5_defenders.png`](reports/figures/top5_defenders.png)
+- [`reports/figures/top5_goalkeepers.png`](reports/figures/top5_goalkeepers.png)
+
+Run the player layer after the base pipeline:
 
 ```bash
 python src/run_player_upgrade.py
 python src/validate_player_data.py
 ```
 
-The upgrade adds `player_metrics` and `player_rankings` tables to the local SQLite database and produces four Top-5 charts under `reports/figures/`.
+The generated ranking data is loaded into the local SQLite database for subsequent SQL queries and dashboard work.
 
 ---
 
@@ -215,7 +254,8 @@ champions-league-2025-26-analytics/
 │
 ├── data/
 │   ├── raw/
-│   │   └── README.md
+│   │   ├── README.md
+│   │   └── player_sources.md
 │   └── processed/              # generated locally, ignored by Git
 │
 ├── src/
@@ -225,7 +265,13 @@ champions-league-2025-26-analytics/
 │   ├── build_database.py
 │   ├── validate_data.py
 │   ├── run_pipeline.py
-│   └── generate_report.py
+│   ├── generate_report.py
+│   ├── fetch_player_data.py
+│   ├── player_metrics.py
+│   ├── build_player_rankings.py
+│   ├── load_player_data.py
+│   ├── validate_player_data.py
+│   └── run_player_upgrade.py
 │
 ├── sql/
 │   ├── 01_schema.sql
@@ -246,7 +292,8 @@ champions-league-2025-26-analytics/
 │
 └── docs/
     ├── data_dictionary.md
-    └── interview_notes.md
+    ├── interview_notes.md
+    └── player_ranking_methodology.md
 ```
 
 ---
@@ -273,27 +320,34 @@ pip install -r requirements.txt
 
 ### 3. Add the source datasets
 
-Place the two raw files in `data/raw/` as described in [`data/raw/README.md`](data/raw/README.md).
+Place the two raw match files in `data/raw/` as described in [`data/raw/README.md`](data/raw/README.md). The small player-source snapshots required by the LPI are already versioned with the project.
 
-### 4. Run the complete pipeline
+### 4. Run the complete match pipeline
 
 ```bash
 python src/run_pipeline.py
 ```
 
-### 5. Validate the database
+### 5. Validate the match database
 
 ```bash
 python src/validate_data.py
 ```
 
-### 6. Generate the report and figures
+### 6. Generate the match report and figures
 
 ```bash
 python src/generate_report.py
 ```
 
-### 7. Open the notebook
+### 7. Run and validate the player layer
+
+```bash
+python src/run_player_upgrade.py
+python src/validate_player_data.py
+```
+
+### 8. Open the notebook
 
 ```bash
 jupyter notebook notebooks/champions_league_analysis.ipynb
@@ -303,12 +357,17 @@ jupyter notebook notebooks/champions_league_analysis.ipynb
 
 ## Interview-Friendly Summary
 
-A concise explanation of the project is available in [`docs/interview_notes.md`](docs/interview_notes.md). It covers the project objective, why two sources were needed, the main cleaning decisions, SQL concepts used and the most important limitation.
+A concise explanation of the project is available in [`docs/interview_notes.md`](docs/interview_notes.md). It covers the project objective, why multiple sources were needed, the main cleaning decisions, SQL concepts used, the player-ranking design and the most important limitations.
 
 ---
 
-## Current Scope
+## Current Scope and Limitations
 
-This version intentionally focuses on **team and match analytics**. Player-level analysis is outside the current scope so that the project remains consistent, reproducible and straightforward to explain.
+The project contains two intentionally different analytical scopes:
 
-The detailed performance dataset covers the league phase only; knockout-stage possession or shooting statistics are therefore not inferred or fabricated.
+1. **Team and match analytics** — complete results for all 189 matches, with richer possession/shooting analysis limited to the 144-match league phase.
+2. **Player leaderboard analytics** — an explainable LPI based on preserved UEFA leaderboard snapshots and goalkeeper clean-sheet data.
+
+The LPI should not be interpreted as a complete ranking of every eligible Champions League player because the source snapshots contain published leaderboard candidates rather than uniform event-level statistics for the whole player population. A future version could replace the LPI with a full per-90 model if a complete, redistributable and reproducible all-player dataset becomes available.
+
+No knockout-stage possession or shooting values are inferred, and no missing player statistics are fabricated.
