@@ -175,6 +175,36 @@ Additional generated findings are stored in [`reports/analysis_summary.md`](repo
 
 ---
 
+## Player Performance Analysis
+
+The project also includes a position-specific player-ranking layer for the 2025/26 Champions League.
+
+Player statistics are collected from FBref's non-qualifying-round competition tables and transformed into comparable per-90 and percentage metrics. Players are grouped by their primary position and filtered by minimum playing time before scoring.
+
+The analytical model ranks:
+
+- Top 5 forwards
+- Top 5 midfielders
+- Top 5 defenders
+- Top 5 goalkeepers
+
+Each position uses different metrics and weights rather than applying one generic score to every player. The resulting `performance_score` is a within-position analytical score from 0–100, not an official UEFA award.
+
+Detailed methodology: [`docs/player_ranking_methodology.md`](docs/player_ranking_methodology.md)
+
+Generated report: [`reports/player_rankings.md`](reports/player_rankings.md)
+
+Run the full player upgrade after the base pipeline:
+
+```bash
+python src/run_player_upgrade.py
+python src/validate_player_data.py
+```
+
+The upgrade adds `player_metrics` and `player_rankings` tables to the local SQLite database and produces four Top-5 charts under `reports/figures/`.
+
+---
+
 ## Repository Structure
 
 ```text
@@ -202,13 +232,16 @@ champions-league-2025-26-analytics/
 │   ├── 02_data_quality.sql
 │   ├── 03_team_performance.sql
 │   ├── 04_home_away_analysis.sql
-│   └── 05_advanced_analysis.sql
+│   ├── 05_advanced_analysis.sql
+│   ├── 06_player_performance.sql
+│   └── 07_position_rankings.sql
 │
 ├── notebooks/
 │   └── champions_league_analysis.ipynb
 │
 ├── reports/
 │   ├── analysis_summary.md
+│   ├── player_rankings.md
 │   └── figures/
 │
 └── docs/
