@@ -1,0 +1,43 @@
+"""Canonical team-name mappings used to join the two source datasets."""
+
+OPENFOOTBALL_TEAM_MAP = {
+    "AFC Ajax (NED)": ("Ajax", "NED"),
+    "AS Monaco FC (MCO)": ("Monaco", "MCO"),
+    "Arsenal FC (ENG)": ("Arsenal", "ENG"),
+    "Atalanta BC (ITA)": ("Atalanta", "ITA"),
+    "Athletic Club (ESP)": ("Athletic Club", "ESP"),
+    "Bayer 04 Leverkusen (GER)": ("Leverkusen", "GER"),
+    "Borussia Dortmund (GER)": ("Dortmund", "GER"),
+    "Chelsea FC (ENG)": ("Chelsea", "ENG"),
+    "Club Atlético de Madrid (ESP)": ("Atlético Madrid", "ESP"),
+    "Club Brugge KV (BEL)": ("Club Brugge", "BEL"),
+    "Eintracht Frankfurt (GER)": ("Eintracht Frankfurt", "GER"),
+    "FC Barcelona (ESP)": ("Barcelona", "ESP"),
+    "FC Bayern München (GER)": ("Bayern Munich", "GER"),
+    "FC Internazionale Milano (ITA)": ("Inter", "ITA"),
+    "FC København (DEN)": ("FC Copenhagen", "DEN"),
+    "FK Bodø/Glimt (NOR)": ("Bodø/Glimt", "NOR"),
+    "FK Kairat (KAZ)": ("FC Kairat", "KAZ"),
+    "Galatasaray SK (TUR)": ("Galatasaray", "TUR"),
+    "Juventus FC (ITA)": ("Juventus", "ITA"),
+    "Liverpool FC (ENG)": ("Liverpool", "ENG"),
+    "Manchester City FC (ENG)": ("Manchester City", "ENG"),
+    "Newcastle United FC (ENG)": ("Newcastle United", "ENG"),
+    "Olympique de Marseille (FRA)": ("Marseille", "FRA"),
+    "PAE Olympiakos SFP (GRE)": ("Olympiacos", "GRE"),
+    "PSV (NED)": ("PSV", "NED"),
+    "Paphos FC (CYP)": ("Pafos FC", "CYP"),
+    "Paris Saint-Germain FC (FRA)": ("Paris Saint-Germain", "FRA"),
+    "Qarabağ Ağdam FK (AZE)": ("Qarabağ", "AZE"),
+    "Real Madrid CF (ESP)": ("Real Madrid", "ESP"),
+    "Royale Union Saint-Gilloise (BEL)": ("Union SG", "BEL"),
+    "SK Slavia Praha (CZE)": ("Slavia Prague", "CZE"),
+    "SSC Napoli (ITA)": ("Napoli", "ITA"),
+    "Sport Lisboa e Benfica (POR)": ("Benfica", "POR"),
+    "Sporting Clube de Portugal (POR)": ("Sporting CP", "POR"),
+    "Tottenham Hotspur FC (ENG)": ("Tottenham Hotspur", "ENG"),
+    "Villarreal CF (ESP)": ("Villarreal", "ESP"),
+}
+
+CANONICAL_TEAMS = sorted({name for name, _ in OPENFOOTBALL_TEAM_MAP.values()})
+COUNTRY_BY_TEAM = {name: country for name, country in OPENFOOTBALL_TEAM_MAP.values()}
